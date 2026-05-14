@@ -1,0 +1,40 @@
+name: Test baseline_path input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a baseline file
+        run: |
+          echo '{"findings":[]}' > "$GITHUB_WORKSPACE/gitleaks-baseline.json"
+      - id: action
+        uses: .
+        with:
+          baseline_path: "gitleaks-baseline.json"
+          fail: "false"
+          verbose: "true"
+          log_level: "info"
+      - name: Assert baseline_path is reflected in command
+        env:
+          EXITCODE: ${{ steps.action.outputs.exitcode }}
+          COMMAND: ${{ steps.action.outputs.command }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          echo "command: $COMMAND"
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output was empty"
+            exit 1
+          fi
+          if [ -z "$COMMAND" ]; then
+            echo "FAIL: command output was empty"
+            exit 1
+          fi
+          if echo "$COMMAND" | grep -q "\-\-baseline-path"; then
+            echo "PASS: --baseline-path flag present in command"
+          else
+            echo "FAIL: --baseline-path flag not found in command: $COMMAND"
+            exit 1
+          fi
+          echo "PASS"

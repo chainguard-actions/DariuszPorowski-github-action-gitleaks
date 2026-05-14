@@ -1,0 +1,43 @@
+name: Test no_git and source inputs
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a plain directory to scan
+        run: |
+          mkdir -p /tmp/scan-target
+          echo "# Hello World" > /tmp/scan-target/README.md
+          echo "name: test" > /tmp/scan-target/config.yaml
+      - id: action
+        uses: .
+        with:
+          source: "."
+          no_git: "true"
+          fail: "false"
+          verbose: "true"
+          log_level: "info"
+      - name: Assert outputs are set
+        env:
+          EXITCODE: ${{ steps.action.outputs.exitcode }}
+          COMMAND: ${{ steps.action.outputs.command }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          echo "command: $COMMAND"
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output was empty"
+            exit 1
+          fi
+          if [ -z "$COMMAND" ]; then
+            echo "FAIL: command output was empty"
+            exit 1
+          fi
+          if echo "$COMMAND" | grep -q "\-\-no-git"; then
+            echo "PASS: --no-git flag present in command"
+          else
+            echo "FAIL: --no-git flag not found in command: $COMMAND"
+            exit 1
+          fi
+          echo "PASS"
