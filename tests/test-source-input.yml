@@ -1,0 +1,38 @@
+name: Test source input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create a safe source directory to scan
+        run: |
+          mkdir -p /tmp/safe-source
+          echo "# Safe file with no secrets" > /tmp/safe-source/README.md
+          echo "hello=world" > /tmp/safe-source/config.txt
+      - id: action
+        uses: .
+        with:
+          source: "/tmp/safe-source"
+          fail: "false"
+          verbose: "true"
+          log_level: "info"
+          report_format: "json"
+          redact: "true"
+          no_git: "true"
+        continue-on-error: true
+      - name: Assert exitcode output is set
+        env:
+          EXITCODE: ${{ steps.action.outputs.exitcode }}
+          RESULT: ${{ steps.action.outputs.result }}
+          COMMAND: ${{ steps.action.outputs.command }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          echo "result: $RESULT"
+          echo "command: $COMMAND"
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output was empty"
+            exit 1
+          fi
+          echo "PASS: exitcode output is set to '$EXITCODE'"
