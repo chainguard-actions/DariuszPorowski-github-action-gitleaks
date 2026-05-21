@@ -8,7 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
-| v2.0.8 | [`v2.0.8`](https://github.com/chainguard-actions/github-action-gitleaks/tree/v2.0.8) | — |
+| v2.0.8 | [`v2.0.8`](https://github.com/chainguard-actions/DariuszPorowski--github-action-gitleaks/tree/v2.0.8) | — |
 
 ## Privacy
 
