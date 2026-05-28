@@ -105,9 +105,11 @@ EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
 echo "output<<$EOF" >>"$GITHUB_OUTPUT"
 echo -e "${OUTPUT}" >>"$GITHUB_OUTPUT"
 echo "$EOF" >>"$GITHUB_OUTPUT"
-echo "report=gitleaks-report.${INPUT_REPORT_FORMAT}" >>"$GITHUB_OUTPUT"
+safe_report_format=$(printf '%s' "${INPUT_REPORT_FORMAT}" | tr -d '\n\r')
+echo "report=gitleaks-report.${safe_report_format}" >>"$GITHUB_OUTPUT"
 echo "result=${GITLEAKS_RESULT}" >>"$GITHUB_OUTPUT"
-echo "command=${command}" >>"$GITHUB_OUTPUT"
+safe_command=$(printf '%s' "${command}" | tr -d '\n\r')
+echo "command=${safe_command}" >>"$GITHUB_OUTPUT"
 echo "exitcode=${exitcode}" >>"$GITHUB_OUTPUT"
 echo -e "Gitleaks Summary: ${GITLEAKS_RESULT}\n" >>"$GITHUB_STEP_SUMMARY"
 echo -e "${OUTPUT}" >>"$GITHUB_STEP_SUMMARY"

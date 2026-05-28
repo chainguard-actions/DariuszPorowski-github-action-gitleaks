@@ -1,43 +1,56 @@
-name: Test no_git and source inputs
+name: Test no_git input (scan as plain directory)
 on:
   workflow_dispatch:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_EVENT_NAME: push
+      GITHUB_REF: refs/heads/main
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Create a plain directory to scan
+      - name: Create a plain directory to scan (no git history)
         run: |
-          mkdir -p /tmp/scan-target
-          echo "# Hello World" > /tmp/scan-target/README.md
-          echo "name: test" > /tmp/scan-target/config.yaml
+          mkdir -p /tmp/plain-scan-dir
+          echo "# Safe file with no secrets" > /tmp/plain-scan-dir/README.md
+          echo "hello=world" > /tmp/plain-scan-dir/config.txt
       - id: action
         uses: .
         with:
-          source: "."
+          source: "/tmp/plain-scan-dir"
           no_git: "true"
-          fail: "false"
+          fail: "true"
           verbose: "true"
           log_level: "info"
-      - name: Assert outputs are set
+          report_format: "json"
+          redact: "true"
+      - name: Assert exitcode is 0
         env:
-          EXITCODE: ${{ steps.action.outputs.exitcode }}
-          COMMAND: ${{ steps.action.outputs.command }}
+          ACTUAL: ${{ steps.action.outputs.exitcode }}
         run: |
-          echo "exitcode: $EXITCODE"
-          echo "command: $COMMAND"
-          if [ -z "$EXITCODE" ]; then
-            echo "FAIL: exitcode output was empty"
+          echo "actual exitcode: $ACTUAL"
+          if [ "$ACTUAL" != "0" ]; then
+            echo "FAIL: expected exitcode 0, got $ACTUAL"
             exit 1
           fi
-          if [ -z "$COMMAND" ]; then
-            echo "FAIL: command output was empty"
+          echo "PASS"
+      - name: Assert result contains SUCCESS
+        env:
+          ACTUAL: ${{ steps.action.outputs.result }}
+        run: |
+          echo "actual result: $ACTUAL"
+          if [[ "$ACTUAL" != *"SUCCESS"* ]]; then
+            echo "FAIL: expected result to contain SUCCESS"
             exit 1
           fi
-          if echo "$COMMAND" | grep -q "\-\-no-git"; then
-            echo "PASS: --no-git flag present in command"
-          else
-            echo "FAIL: --no-git flag not found in command: $COMMAND"
+          echo "PASS"
+      - name: Assert command contains no-git flag
+        env:
+          ACTUAL: ${{ steps.action.outputs.command }}
+        run: |
+          echo "actual command: $ACTUAL"
+          if [[ "$ACTUAL" != *"--no-git"* ]]; then
+            echo "FAIL: expected command to contain --no-git flag"
             exit 1
           fi
           echo "PASS"

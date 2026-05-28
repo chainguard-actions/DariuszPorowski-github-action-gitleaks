@@ -1,4 +1,4 @@
-name: Test basic usage (push event, no secrets)
+name: Test source input (scan specific subdirectory)
 on:
   workflow_dispatch:
 jobs:
@@ -12,6 +12,7 @@ jobs:
       - id: action
         uses: .
         with:
+          source: "actions/hardened/DariuszPorowski--github-action-gitleaks/v2.0.8/tests"
           fail: "true"
           verbose: "true"
           log_level: "info"
@@ -37,23 +38,13 @@ jobs:
             exit 1
           fi
           echo "PASS"
-      - name: Assert report output is set
-        env:
-          ACTUAL: ${{ steps.action.outputs.report }}
-        run: |
-          echo "actual report: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected report to be set"
-            exit 1
-          fi
-          echo "PASS"
-      - name: Assert command output is set
+      - name: Assert command contains source path
         env:
           ACTUAL: ${{ steps.action.outputs.command }}
         run: |
           echo "actual command: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected command to be set"
+          if [[ "$ACTUAL" != *"tests"* ]]; then
+            echo "FAIL: expected command to reference the source path"
             exit 1
           fi
           echo "PASS"

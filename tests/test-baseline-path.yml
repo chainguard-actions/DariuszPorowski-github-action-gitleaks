@@ -1,4 +1,4 @@
-name: Test basic usage (push event, no secrets)
+name: Test baseline_path input (ignore known issues)
 on:
   workflow_dispatch:
 jobs:
@@ -9,9 +9,13 @@ jobs:
       GITHUB_REF: refs/heads/main
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Create baseline file with empty findings
+        run: |
+          echo '[]' > "$GITHUB_WORKSPACE/gitleaks-baseline.json"
       - id: action
         uses: .
         with:
+          baseline_path: "gitleaks-baseline.json"
           fail: "true"
           verbose: "true"
           log_level: "info"
@@ -37,23 +41,13 @@ jobs:
             exit 1
           fi
           echo "PASS"
-      - name: Assert report output is set
-        env:
-          ACTUAL: ${{ steps.action.outputs.report }}
-        run: |
-          echo "actual report: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected report to be set"
-            exit 1
-          fi
-          echo "PASS"
-      - name: Assert command output is set
+      - name: Assert command contains baseline-path flag
         env:
           ACTUAL: ${{ steps.action.outputs.command }}
         run: |
           echo "actual command: $ACTUAL"
-          if [ -z "$ACTUAL" ]; then
-            echo "FAIL: expected command to be set"
+          if [[ "$ACTUAL" != *"--baseline-path"* ]]; then
+            echo "FAIL: expected command to contain --baseline-path flag"
             exit 1
           fi
           echo "PASS"
