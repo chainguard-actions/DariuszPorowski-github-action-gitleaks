@@ -1,0 +1,43 @@
+name: dog food
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        id: gitleaks
+        uses: DariuszPorowski/github-action-gitleaks@a027585cb1f2780aa441f20f4d0aabf8b1a0d90e # v2
+        with:
+          report_format: sarif
+          fail: false
+
+      - name: Get the output from the gitleaks step
+        env:
+          GITLEAKS_EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+          GITLEAKS_RESULT: ${{ steps.gitleaks.outputs.result }}
+          GITLEAKS_OUTPUT: ${{ steps.gitleaks.outputs.output }}
+          GITLEAKS_COMMAND: ${{ steps.gitleaks.outputs.command }}
+          GITLEAKS_REPORT: ${{ steps.gitleaks.outputs.report }}
+        run: |
+          echo "exitcode: ${GITLEAKS_EXITCODE}"
+          echo "result: ${GITLEAKS_RESULT}"
+          echo "output: ${GITLEAKS_OUTPUT}"
+          echo "command: ${GITLEAKS_COMMAND}"
+          echo "report: ${GITLEAKS_REPORT}"
+
+      - name: Upload SARIF report
+        if: steps.gitleaks.outputs.exitcode == 1
+        uses: github/codeql-action/upload-sarif@b8d3b6e8af63cde30bdc382c0bc28114f4346c88 # v2
+        with:
+          sarif_file: ${{ steps.gitleaks.outputs.report }}

@@ -49,4 +49,4 @@ outputs:
 
 runs:
   using: "docker"
-  image: "docker://ghcr.io/dariuszporowski/github-action-gitleaks@sha256:b8122d73a64a979072e10888d8feb036746012efc00e2ddc0690fdb52c0c8ff0" # latest
+  image: "docker://ghcr.io/dariuszporowski/github-action-gitleaks:latest@sha256:b8122d73a64a979072e10888d8feb036746012efc00e2ddc0690fdb52c0c8ff0"

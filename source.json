@@ -1,0 +1,11 @@
+{
+  "owner": "DariuszPorowski",
+  "repo": "github-action-gitleaks",
+  "version": "v.2.0.6",
+  "commit_sha": "88923d91d6bf1a8262c3fc50812a93ef840b1bc5",
+  "url": "https://github.com/DariuszPorowski/github-action-gitleaks",
+  "policy_sha": "d636be7e43ef829af6e853da6b3c7566db9f72fe",
+  "test_policy_sha": "843adf9e4b8f85d0c08b27b9d0b09dd094b54702",
+  "test_agent_version": "2",
+  "harden_agent_version": "2"
+}

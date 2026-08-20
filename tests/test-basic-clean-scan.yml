@@ -1,0 +1,62 @@
+name: Test basic clean scan
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git origin reachable inside Docker container
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git push "$GITHUB_WORKSPACE/.git-remote" --tags
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+
+      - id: gitleaks
+        uses: .
+        with:
+          fail: "false"
+          verbose: "true"
+          log_level: "info"
+          report_format: "json"
+
+      - name: Assert exitcode output is set
+        env:
+          EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output is empty"
+            exit 1
+          fi
+          echo "PASS: exitcode is '$EXITCODE'"
+
+      - name: Assert result output is set
+        env:
+          RESULT: ${{ steps.gitleaks.outputs.result }}
+        run: |
+          echo "result: $RESULT"
+          if [ -z "$RESULT" ]; then
+            echo "FAIL: result output is empty"
+            exit 1
+          fi
+          echo "PASS: result is '$RESULT'"
+
+      - name: Assert command output is set
+        env:
+          COMMAND: ${{ steps.gitleaks.outputs.command }}
+        run: |
+          echo "command: $COMMAND"
+          if [ -z "$COMMAND" ]; then
+            echo "FAIL: command output is empty"
+            exit 1
+          fi
+          echo "PASS: command is '$COMMAND'"
