@@ -1,4 +1,4 @@
-FROM zricethezav/gitleaks:latest
+FROM zricethezav/gitleaks:latest@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
 # FROM ghcr.io/zricethezav/gitleaks:latest
 
 LABEL "com.github.actions.name"="Gitleaks Scanner"

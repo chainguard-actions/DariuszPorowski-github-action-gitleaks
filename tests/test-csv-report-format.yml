@@ -1,0 +1,63 @@
+name: Test CSV report format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up a git origin reachable inside the Docker container
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git push "$GITHUB_WORKSPACE/.git-remote" --tags
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+
+      - id: gitleaks
+        uses: .
+        with:
+          report_format: "csv"
+          fail: "false"
+          verbose: "false"
+          log_level: "info"
+        continue-on-error: true
+
+      - name: Assert report format is CSV
+        env:
+          REPORT: ${{ steps.gitleaks.outputs.report }}
+          COMMAND: ${{ steps.gitleaks.outputs.command }}
+          EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+          OUTCOME: ${{ steps.gitleaks.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "exitcode: $EXITCODE"
+          echo "report: $REPORT"
+          echo "command: $COMMAND"
+
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output is empty"
+            exit 1
+          fi
+
+          # Verify the report file has .csv extension
+          if echo "$REPORT" | grep -q "\.csv$"; then
+            echo "PASS: report file has .csv extension"
+          else
+            echo "FAIL: expected .csv extension in report '$REPORT'"
+            exit 1
+          fi
+
+          # Verify --report-format csv appears in the command
+          if echo "$COMMAND" | grep -q "\-\-report-format csv"; then
+            echo "PASS: --report-format csv is present in command"
+          else
+            echo "FAIL: --report-format csv not found in command: $COMMAND"
+            exit 1
+          fi

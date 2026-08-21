@@ -1,0 +1,72 @@
+name: Test fail=false does not fail step on leaks
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up a git origin reachable inside the Docker container
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git push "$GITHUB_WORKSPACE/.git-remote" --tags
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+
+      - name: Create a directory with a fake secret to trigger gitleaks
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/leak-target"
+          # Write a file with a fake AWS key pattern to trigger gitleaks
+          cat > "$GITHUB_WORKSPACE/leak-target/config.txt" << 'EOF'
+          # This is a test file with a fake secret for gitleaks testing
+          AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+          AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+          EOF
+
+      - id: gitleaks
+        uses: .
+        with:
+          source: "leak-target"
+          no_git: "true"
+          fail: "false"
+          redact: "true"
+          verbose: "true"
+          log_level: "info"
+
+      - name: Assert step did not fail despite potential leaks (fail=false)
+        env:
+          EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+          RESULT: ${{ steps.gitleaks.outputs.result }}
+          OUTCOME: ${{ steps.gitleaks.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "exitcode: $EXITCODE"
+          echo "result: $RESULT"
+
+          # With fail=false, the step should always succeed (outcome=success)
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: step should have succeeded with fail=false, got outcome=$OUTCOME"
+            exit 1
+          fi
+          echo "PASS: step succeeded as expected with fail=false"
+
+          # exitcode should be set (0 = no leaks, 1 = leaks found)
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output is empty"
+            exit 1
+          fi
+          echo "PASS: exitcode is '$EXITCODE'"
+
+          # result should be set
+          if [ -z "$RESULT" ]; then
+            echo "FAIL: result output is empty"
+            exit 1
+          fi
+          echo "PASS: result is '$RESULT'"

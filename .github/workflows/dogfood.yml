@@ -1,0 +1,72 @@
+name: dog food - tests
+
+on: [push, pull_request, pull_request_target, workflow_dispatch]
+
+# Allow one concurrent deployment
+concurrency:
+  group: ${{ format('{0}-{1}-{2}-{3}-{4}', github.workflow, github.event_name, github.ref, github.base_ref, github.head_ref) }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  ghdiag:
+    name: Run GitHub diagnostic
+    if: ${{ vars.ACTIONS_RUNNER_DEBUG || vars.ACTIONS_STEP_DEBUG }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Dump
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            core.debug('!!! START github START !!!')
+            core.info(JSON.stringify(github, null, '  '))
+            core.debug('!!! END github END !!!')
+
+            core.debug('!!! START context START !!!')
+            core.info(JSON.stringify(context, null, '  '))
+            core.debug('!!! END context END !!!')
+      - run: printenv
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    name: Run Gitleaks
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        id: gitleaks
+        uses: ./
+        with:
+          report_format: sarif
+          fail: false
+
+      - name: Get the output from the gitleaks step
+        run: |
+          echo "exitcode: ${GITLEAKS_EXITCODE}"
+          echo "result: ${GITLEAKS_RESULT}"
+          echo "command: ${GITLEAKS_COMMAND}"
+          echo "report: ${GITLEAKS_REPORT}"
+          echo "output: ${GITLEAKS_OUTPUT}"
+        env:
+          GITLEAKS_EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+          GITLEAKS_RESULT: ${{ steps.gitleaks.outputs.result }}
+          GITLEAKS_COMMAND: ${{ steps.gitleaks.outputs.command }}
+          GITLEAKS_REPORT: ${{ steps.gitleaks.outputs.report }}
+          GITLEAKS_OUTPUT: ${{ steps.gitleaks.outputs.output }}
+
+      - name: Upload SARIF report
+        if: ${{ steps.gitleaks.outputs.exitcode == 1 }}
+        uses: github/codeql-action/upload-sarif@b8d3b6e8af63cde30bdc382c0bc28114f4346c88 # v2
+        with:
+          sarif_file: ${{ steps.gitleaks.outputs.report }}

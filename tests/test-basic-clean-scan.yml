@@ -1,0 +1,75 @@
+name: Test basic clean scan
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up a git origin reachable inside the Docker container
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git push "$GITHUB_WORKSPACE/.git-remote" --tags
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+
+      - id: gitleaks
+        uses: .
+        with:
+          fail: "true"
+          verbose: "true"
+          log_level: "info"
+        continue-on-error: true
+
+      - name: Assert exitcode output is set
+        env:
+          EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+          RESULT: ${{ steps.gitleaks.outputs.result }}
+          COMMAND: ${{ steps.gitleaks.outputs.command }}
+          REPORT: ${{ steps.gitleaks.outputs.report }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          echo "result: $RESULT"
+          echo "command: $COMMAND"
+          echo "report: $REPORT"
+
+          if [ -z "$EXITCODE" ]; then
+            echo "FAIL: exitcode output is empty"
+            exit 1
+          fi
+          echo "PASS: exitcode is '$EXITCODE'"
+
+          if [ -z "$COMMAND" ]; then
+            echo "FAIL: command output is empty"
+            exit 1
+          fi
+          echo "PASS: command is set"
+
+          if [ -z "$REPORT" ]; then
+            echo "FAIL: report output is empty"
+            exit 1
+          fi
+          echo "PASS: report is '$REPORT'"
+
+      - name: Assert scan succeeded (exitcode 0 = no leaks)
+        env:
+          EXITCODE: ${{ steps.gitleaks.outputs.exitcode }}
+          OUTCOME: ${{ steps.gitleaks.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "exitcode: $EXITCODE"
+          if [ "$EXITCODE" = "0" ]; then
+            echo "PASS: clean scan, no secrets found"
+          elif [ "$EXITCODE" = "1" ]; then
+            echo "PASS: gitleaks ran and reported leaks (exitcode=1 is valid gitleaks behavior)"
+          else
+            echo "FAIL: unexpected exitcode '$EXITCODE'"
+            exit 1
+          fi

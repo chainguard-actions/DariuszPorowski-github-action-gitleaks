@@ -60,34 +60,58 @@ echo "git config --global --add safe.directory ${GITHUB_WORKSPACE}"
 git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 echo "----------------------------------"
 
-command="gitleaks detect"
+# Build command as an array to avoid eval and shell injection
+cmd=(gitleaks detect)
+
 if [ -f "${INPUT_CONFIG}" ]; then
-  command+=$(arg '--config %s' "${INPUT_CONFIG}")
+  cmd+=(--config "${INPUT_CONFIG}")
 fi
 
-command+=$(arg '--baseline-path %s' "${INPUT_BASELINE_PATH}")
-command+=$(arg '--report-format %s' "${INPUT_REPORT_FORMAT}")
-command+=$(arg '--redact' "${INPUT_REDACT}")
-command+=$(arg '--verbose' "${INPUT_VERBOSE}")
-command+=$(arg '--log-level %s' "${INPUT_LOG_LEVEL}")
-command+=$(arg '--report-path %s' "${GITHUB_WORKSPACE}/gitleaks-report.${INPUT_REPORT_FORMAT}")
+if [[ "${#INPUT_BASELINE_PATH}" -gt 0 && "${INPUT_BASELINE_PATH}" != "false" ]]; then
+  cmd+=(--baseline-path "${INPUT_BASELINE_PATH}")
+fi
+
+if [[ "${#INPUT_REPORT_FORMAT}" -gt 0 && "${INPUT_REPORT_FORMAT}" != "false" ]]; then
+  cmd+=(--report-format "${INPUT_REPORT_FORMAT}")
+fi
+
+if [[ "${INPUT_REDACT}" != "false" && "${#INPUT_REDACT}" -gt 0 ]]; then
+  cmd+=(--redact)
+fi
+
+if [[ "${INPUT_VERBOSE}" != "false" && "${#INPUT_VERBOSE}" -gt 0 ]]; then
+  cmd+=(--verbose)
+fi
+
+if [[ "${#INPUT_LOG_LEVEL}" -gt 0 && "${INPUT_LOG_LEVEL}" != "false" ]]; then
+  cmd+=(--log-level "${INPUT_LOG_LEVEL}")
+fi
+
+cmd+=(--report-path "${GITHUB_WORKSPACE}/gitleaks-report.${INPUT_REPORT_FORMAT}")
 
 if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-  command+=$(arg '--source %s' "${GITHUB_WORKSPACE}")
+  cmd+=(--source "${GITHUB_WORKSPACE}")
 
   base_sha=$(git rev-parse "refs/remotes/origin/${GITHUB_BASE_REF}")
   head_sha=$(git rev-list --no-merges -n 1 refs/remotes/pull/${GITHUB_REF_NAME})
-  command+=$(arg '--log-opts "%s"' "--no-merges --first-parent ${base_sha}^..${head_sha}")
+  cmd+=(--log-opts "--no-merges --first-parent ${base_sha}^..${head_sha}")
 else
-  command+=$(arg '--source %s' "${INPUT_SOURCE}")
-  command+=$(arg '--no-git' "${INPUT_NO_GIT}")
+  if [[ "${#INPUT_SOURCE}" -gt 0 && "${INPUT_SOURCE}" != "false" ]]; then
+    cmd+=(--source "${INPUT_SOURCE}")
+  fi
+  if [[ "${INPUT_NO_GIT}" != "false" && "${#INPUT_NO_GIT}" -gt 0 ]]; then
+    cmd+=(--no-git)
+  fi
 fi
+
+# Build a display string of the command (for output/logging only)
+command_str="${cmd[*]}"
 
 echo "Running gitleaks $(gitleaks version)"
 echo "----------------------------------"
-echo "${command}"
+echo "${command_str}"
 
-OUTPUT=$(eval "${command}")
+OUTPUT=$("${cmd[@]}")
 exitcode=$?
 
 if [ ${exitcode} -eq 0 ]; then
@@ -105,12 +129,17 @@ EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
 echo "output<<$EOF" >>"$GITHUB_OUTPUT"
 echo -e "${OUTPUT}" >>"$GITHUB_OUTPUT"
 echo "$EOF" >>"$GITHUB_OUTPUT"
+
+# Sanitize user-controlled values before writing to GITHUB_OUTPUT
 safe_report_format=$(printf '%s' "${INPUT_REPORT_FORMAT}" | tr -d '\n\r')
+safe_result=$(printf '%s' "${GITLEAKS_RESULT}" | tr -d '\n\r')
+safe_command=$(printf '%s' "${command_str}" | tr -d '\n\r')
+safe_exitcode=$(printf '%s' "${exitcode}" | tr -d '\n\r')
+
 echo "report=gitleaks-report.${safe_report_format}" >>"$GITHUB_OUTPUT"
-echo "result=${GITLEAKS_RESULT}" >>"$GITHUB_OUTPUT"
-safe_command=$(printf '%s' "${command}" | tr -d '\n\r')
+echo "result=${safe_result}" >>"$GITHUB_OUTPUT"
 echo "command=${safe_command}" >>"$GITHUB_OUTPUT"
-echo "exitcode=${exitcode}" >>"$GITHUB_OUTPUT"
+echo "exitcode=${safe_exitcode}" >>"$GITHUB_OUTPUT"
 echo -e "Gitleaks Summary: ${GITLEAKS_RESULT}\n" >>"$GITHUB_STEP_SUMMARY"
 echo -e "${OUTPUT}" >>"$GITHUB_STEP_SUMMARY"
 
