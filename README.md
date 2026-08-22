@@ -10,6 +10,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 |---------|-----|-----------------|
 | v.2.0.6 | [`v.2.0.6`](https://github.com/chainguard-actions/DariuszPorowski-github-action-gitleaks/tree/v.2.0.6) | [`88923d9`](https://github.com/DariuszPorowski/github-action-gitleaks/commit/88923d91d6bf1a8262c3fc50812a93ef840b1bc5) |
 | v2.0.8 | [`v2.0.8`](https://github.com/chainguard-actions/DariuszPorowski-github-action-gitleaks/tree/v2.0.8) | [`4410bd5`](https://github.com/DariuszPorowski/github-action-gitleaks/commit/4410bd5353adccb508100a3d1660aee9c93289fa) |
+| v2.1.0 | [`v2.1.0`](https://github.com/chainguard-actions/DariuszPorowski-github-action-gitleaks/tree/v2.1.0) | [`a027585`](https://github.com/DariuszPorowski/github-action-gitleaks/commit/a027585cb1f2780aa441f20f4d0aabf8b1a0d90e) |
 
 ## Privacy
 
