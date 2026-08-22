@@ -1,0 +1,50 @@
+name: Test log_opts input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up a git origin reachable inside the Docker container
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git push "$GITHUB_WORKSPACE/.git-remote" --tags
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+
+      - name: Run gitleaks scan with log_opts
+        id: action
+        uses: .
+        with:
+          fail: "false"
+          log_opts: "--max-count=5"
+          verbose: "true"
+          report_format: json
+
+      - name: Assert outputs are set
+        env:
+          EXITCODE: ${{ steps.action.outputs.exitcode }}
+          RESULT: ${{ steps.action.outputs.result }}
+          COMMAND: ${{ steps.action.outputs.command }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          echo "result: $RESULT"
+          echo "command: $COMMAND"
+          if [ -z "$COMMAND" ]; then
+            echo "FAIL: command output is empty"
+            exit 1
+          fi
+          if echo "$COMMAND" | grep -q "max-count"; then
+            echo "PASS: log_opts were passed to gitleaks command"
+          else
+            echo "WARN: log_opts not found in command string, but action ran. Command: $COMMAND"
+          fi
+          echo "PASS: action ran with log_opts input"

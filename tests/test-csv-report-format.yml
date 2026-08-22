@@ -1,0 +1,61 @@
+name: Test CSV report format
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: scan
+        uses: .
+        continue-on-error: true
+        with:
+          source: tests/fixtures/clean-source
+          config: tests/fixtures/gitleaks-config.toml
+          no_git: "true"
+          fail: "true"
+          report_format: csv
+          verbose: "false"
+          log_level: info
+
+      - name: Assert action succeeded (no leaks in clean source)
+        env:
+          OUTCOME: ${{ steps.scan.outcome }}
+          EXITCODE: ${{ steps.scan.outputs.exitcode }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "exitcode: $EXITCODE"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: expected action to succeed on clean source but got outcome '$OUTCOME'"
+            exit 1
+          fi
+          if [ "$EXITCODE" != "0" ]; then
+            echo "FAIL: expected exitcode 0 but got '$EXITCODE'"
+            exit 1
+          fi
+          echo "PASS: action succeeded with exitcode 0"
+
+      - name: Assert report output ends with .csv
+        env:
+          REPORT: ${{ steps.scan.outputs.report }}
+        run: |
+          echo "report: $REPORT"
+          if echo "$REPORT" | grep -q "\.csv"; then
+            echo "PASS: report file has .csv extension"
+          else
+            echo "FAIL: expected .csv extension in report path but got: $REPORT"
+            exit 1
+          fi
+
+      - name: Assert command contains csv format
+        env:
+          COMMAND: ${{ steps.scan.outputs.command }}
+        run: |
+          echo "command: $COMMAND"
+          if echo "$COMMAND" | grep -q "csv"; then
+            echo "PASS: command contains csv format"
+          else
+            echo "FAIL: expected csv in command but got: $COMMAND"
+            exit 1
+          fi

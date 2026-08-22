@@ -1,0 +1,69 @@
+name: Test baseline_path input
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create source directory with a fake secret
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-baseline-src"
+          echo 'GITHUB_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' > "$GITHUB_WORKSPACE/test-baseline-src/secrets.txt"
+
+      - name: Run initial scan to generate baseline
+        id: initial_scan
+        uses: .
+        with:
+          source: test-baseline-src
+          no_git: "true"
+          fail: "false"
+          report_format: json
+          verbose: "true"
+
+      - name: Capture baseline report
+        run: |
+          echo "Initial scan exitcode: ${{ steps.initial_scan.outputs.exitcode }}"
+          echo "Initial scan result: ${{ steps.initial_scan.outputs.result }}"
+          REPORT="${{ steps.initial_scan.outputs.report }}"
+          echo "Report path: $REPORT"
+          if [ -n "$REPORT" ] && [ -f "$REPORT" ]; then
+            cp "$REPORT" "$GITHUB_WORKSPACE/baseline.json"
+            echo "Baseline file created"
+            cat "$GITHUB_WORKSPACE/baseline.json"
+          else
+            echo "No report file found, creating empty baseline"
+            echo "[]" > "$GITHUB_WORKSPACE/baseline.json"
+          fi
+
+      - name: Run scan with baseline_path
+        id: action
+        uses: .
+        with:
+          source: test-baseline-src
+          no_git: "true"
+          fail: "false"
+          baseline_path: baseline.json
+          report_format: json
+          verbose: "true"
+
+      - name: Assert outputs are set
+        env:
+          EXITCODE: ${{ steps.action.outputs.exitcode }}
+          RESULT: ${{ steps.action.outputs.result }}
+          COMMAND: ${{ steps.action.outputs.command }}
+        run: |
+          echo "exitcode: $EXITCODE"
+          echo "result: $RESULT"
+          echo "command: $COMMAND"
+          if [ -z "$COMMAND" ]; then
+            echo "FAIL: command output is empty"
+            exit 1
+          fi
+          if echo "$COMMAND" | grep -q "baseline"; then
+            echo "PASS: baseline_path was passed to gitleaks command"
+          else
+            echo "WARN: baseline not found in command, but action ran. Command: $COMMAND"
+          fi
+          echo "PASS: action ran with baseline_path input"

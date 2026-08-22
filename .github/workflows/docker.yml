@@ -1,0 +1,107 @@
+name: Update docker
+
+on:
+  push:
+    branches:
+      - "releases/**"
+    paths:
+      - ".gitleaks/**"
+      - "Dockerfile"
+      - "entrypoint.sh"
+      - "action.yml"
+  # repository_dispatch:
+  #   types: [gitleaks-release]
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    name: Cache latest docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get repo owner
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        id: repo_owner
+        with:
+          result-encoding: string
+          script: return context.repo.owner.toLowerCase()
+
+      - name: Get repo name
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        id: repo_name
+        with:
+          result-encoding: string
+          script: return context.repo.repo.toLowerCase()
+
+      - name: Fetch Gitleaks the latest release
+        id: gitleaks_latest_release
+        run: |
+          gitleaks_latest_tag=$(gh api repos/gitleaks/gitleaks/releases/latest --jq .tag_name)
+          gitleaks_latest_semver=$(echo ${gitleaks_latest_tag} | tr -d "v")
+          echo "tag=${gitleaks_latest_tag}" >>$GITHUB_OUTPUT
+          echo "semver=${gitleaks_latest_semver}" >>$GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Check - upgrade Gitleaks or not
+        id: gitleaks_upgrade
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          pkgs=$(gh api "/users/${REPO_OWNER}/packages/container/${REPO_NAME}/versions" --jq "[.[] | select(.metadata.container.tags | index(\"${GITLEAKS_SEMVER}\"))] | length")
+          if [ $pkgs = 0 ]
+          then
+            echo "upgrade=true" >>$GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO_OWNER: ${{ steps.repo_owner.outputs.result }}
+          REPO_NAME: ${{ steps.repo_name.outputs.result }}
+          GITLEAKS_SEMVER: ${{ steps.gitleaks_latest_release.outputs.semver }}
+
+      - name: Check - upgrade Docker image or not
+        id: upgrade
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.gitleaks_upgrade.outputs.upgrade == 'true') }}
+        run: |
+          echo "upgrade=true" >>$GITHUB_OUTPUT
+
+      - name: Checkout Git repo
+        if: ${{ steps.upgrade.outputs.upgrade == 'true' }}
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # - name: Update config to the release version
+      #   if: ${{ steps.upgrade.outputs.upgrade == 'true' }}
+      #   run: |
+      #     curl --output "${GITHUB_WORKSPACE}/.gitleaks/gitleaks.toml" https://raw.githubusercontent.com/zricethezav/gitleaks/${{ steps.gitleaks_latest_release.outputs.tag }}/config/gitleaks.toml
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        if: ${{ steps.upgrade.outputs.upgrade == 'true' }}
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Prepare Docker image metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        if: ${{ steps.upgrade.outputs.upgrade == 'true' }}
+        with:
+          images: "ghcr.io/${{ steps.repo_owner.outputs.result }}/${{ steps.repo_name.outputs.result }}"
+          flavor: latest=true
+          tags: |
+            type=raw,value=${{ github.run_id }}
+            type=raw,value=${{ steps.gitleaks_latest_release.outputs.tag }}
+            type=semver,pattern={{version}},value=${{ steps.gitleaks_latest_release.outputs.semver }}
+        id: docker_image_metadata
+
+      - name: Build and push Docker image
+        if: ${{ steps.upgrade.outputs.upgrade == 'true' }}
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          tags: ${{ steps.docker_image_metadata.outputs.tags }}
+          labels: ${{ steps.docker_image_metadata.outputs.labels }}
+          push: true

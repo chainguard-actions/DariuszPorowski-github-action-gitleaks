@@ -1,0 +1,10 @@
+title = "Test Gitleaks Config"
+
+# This config intentionally does NOT extend the default gitleaks config.
+# It only detects a specific test pattern to avoid false positives from
+# test YAML files that may contain example secret strings.
+
+[[rules]]
+id = "test-secret"
+description = "Test Secret Pattern for CI testing"
+regex = '''GITLEAKS_TEST_SECRET_[A-Z0-9]{10}'''
